@@ -429,6 +429,11 @@ class CalendarStore:
 
         if changes.get("description") is not None:
             self._write_content(note_id, current.description)
+        else:
+            # The body was not part of this update, so report what is actually
+            # stored instead of the empty placeholder this method started from:
+            # a caller must never see an untouched description come back empty.
+            current.description = html_to_text(self._content(note_id))
 
         current.note_id = note_id
         return current

@@ -245,6 +245,61 @@ def test_to_result_timed_carries_offset():
     assert result["start"] == "2026-07-08T11:00:00+08:00"
 
 
+def test_to_result_same_day_timed_reports_end_date():
+    """A 30-minute event must not come back with end_date: null.
+
+    The #endDate *label* is omitted for same-day events (Trilium convention),
+    but the response is a normalised view, so end_date is always the last day
+    when the event has an end.
+    """
+    ev = Event(
+        uid="u",
+        title="30 min",
+        start_date=date(2026, 11, 11),
+        start_time=time(15, 0),
+        end_time=time(15, 30),
+    )
+    assert "endDate" not in ev.labels()  # storage stays minimal
+    result = ev.to_result(SH)
+    assert result["end_date"] == "2026-11-11"
+    assert result["end_time"] == "15:30"
+    assert result["end"] == "2026-11-11T15:30:00+08:00"
+
+
+def test_to_result_cross_day_timed():
+    ev = Event(
+        uid="u",
+        title="overnight",
+        start_date=date(2026, 11, 12),
+        start_time=time(23, 0),
+        end_date=date(2026, 11, 13),
+        end_time=time(1, 0),
+    )
+    assert ev.labels()["endDate"] == "2026-11-13"
+    result = ev.to_result(SH)
+    assert result["end"] == "2026-11-13T01:00:00+08:00"
+    assert result["end_date"] == "2026-11-13"
+    assert result["end_time"] == "01:00"
+
+
+def test_to_result_open_ended_timed_has_no_end():
+    ev = Event(uid="u", title="open", start_date=date(2026, 11, 14), start_time=time(9, 0))
+    result = ev.to_result(SH)
+    assert result["end"] is None
+    assert result["end_date"] is None
+    assert result["end_time"] is None
+
+
+def test_to_result_all_day_ends_are_dates_only():
+    single = Event(uid="u", title="t", start_date=date(2026, 11, 14))
+    assert single.to_result(SH)["end_date"] == "2026-11-14"
+    assert single.to_result(SH)["end"] == "2026-11-14"
+
+    multi = Event(uid="u", title="t", start_date=date(2026, 11, 14), end_date=date(2026, 11, 20))
+    assert multi.to_result(SH)["end_date"] == "2026-11-20"
+    assert multi.to_result(SH)["end"] == "2026-11-20"
+
+
 # ── html round-trip ───────────────────────────────────────────────────────
 
 

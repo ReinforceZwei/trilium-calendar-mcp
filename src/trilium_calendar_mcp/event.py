@@ -265,13 +265,25 @@ class Event:
         return self.start_date <= range_end and self.last_date >= range_start
 
     def to_result(self, tz: ZoneInfo) -> dict:
-        """JSON-friendly shape returned to the agent."""
+        """JSON-friendly shape returned to the agent.
+
+        ``end_date`` is the event's last day whenever the event has an end, so a
+        caller can read it without special-casing a same-day timed event (the
+        ``#endDate`` *label* is still only written for events that span days,
+        which is Trilium's convention). It is `None` only for a timed event with
+        no end at all, where ``end`` is `None` as well.
+        """
         if self.all_day:
             start = self.start_date.isoformat()
-            end = self.last_date.isoformat()
+            end: str | None = self.last_date.isoformat()
+            end_date_out: str | None = self.last_date.isoformat()
         else:
             start = self.start_datetime(tz).isoformat()
-            end = self.end_datetime(tz).isoformat() if (self.end_time or self.end_date) else None
+            has_end = self.end_time is not None or (
+                self.end_date is not None and self.end_date != self.start_date
+            )
+            end = self.end_datetime(tz).isoformat() if has_end else None
+            end_date_out = (self.end_date or self.start_date).isoformat() if has_end else None
         return {
             "uid": self.uid,
             "calendar_name": self.calendar_name,
@@ -285,7 +297,7 @@ class Event:
             "end": end,
             "start_date": self.start_date.isoformat(),
             "start_time": self.start_time.strftime("%H:%M") if self.start_time else None,
-            "end_date": self.end_date.isoformat() if self.end_date else None,
+            "end_date": end_date_out,
             "end_time": self.end_time.strftime("%H:%M") if self.end_time else None,
             "recurrence_rule": self.recurrence,
             "color": self.color,

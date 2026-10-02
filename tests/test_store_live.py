@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, time
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -199,6 +200,71 @@ def test_list_filters_and_ordering(temp_calendar):
 
     for uid in uids:
         store.delete_event(cal, uid)
+
+
+def test_update_without_description_returns_the_stored_body(temp_calendar):
+    """Regression: an update that does not touch the body must not report ''.
+
+    The returned event used to be built from an empty placeholder, so callers
+    saw description: "" while the note still held the original text.
+    """
+    store = temp_calendar.store
+    cal = store.resolve("TestCal")
+    uid = new_uid()
+
+    store.create_event(
+        cal,
+        Event(uid=uid, title="keep my body", start_date=date(2026, 11, 10),
+              description="line one\nline two"),
+    )
+    updated = store.update_event(cal, uid, {"title": "renamed only"})
+
+    assert updated.title == "renamed only"
+    assert updated.description == "line one\nline two"  # not ""
+    assert updated.to_result(ZoneInfo("Asia/Shanghai"))["description"] == "line one\nline two"
+    # and the note still holds it
+    assert store.get_event(cal, uid).description == "line one\nline two"
+
+    store.delete_event(cal, uid)
+
+
+def test_cross_day_timed_event_round_trip(temp_calendar):
+    store = temp_calendar.store
+    cal = store.resolve("TestCal")
+    uid = new_uid()
+
+    created = store.create_event(
+        cal,
+        Event(uid=uid, title="overnight", start_date=date(2026, 11, 12), start_time=time(23, 0),
+              end_date=date(2026, 11, 13), end_time=time(1, 0)),
+    )
+    labels = _labels(store, created.note_id)
+    assert labels["startDate"] == "2026-11-12" and labels["startTime"] == "23:00"
+    assert labels["endDate"] == "2026-11-13" and labels["endTime"] == "01:00"
+
+    result = store.get_event(cal, uid).to_result(ZoneInfo("Asia/Shanghai"))
+    assert result["end"] == "2026-11-13T01:00:00+08:00"
+    assert result["end_date"] == "2026-11-13"
+
+    store.delete_event(cal, uid)
+
+
+def test_same_day_short_event_reports_its_end_date(temp_calendar):
+    store = temp_calendar.store
+    cal = store.resolve("TestCal")
+    uid = new_uid()
+
+    created = store.create_event(
+        cal,
+        Event(uid=uid, title="30 min", start_date=date(2026, 11, 11),
+              start_time=time(15, 0), end_time=time(15, 30)),
+    )
+    assert "endDate" not in _labels(store, created.note_id)  # minimal storage
+    result = store.get_event(cal, uid).to_result(ZoneInfo("Asia/Shanghai"))
+    assert result["end_date"] == "2026-11-11"  # not None
+    assert result["end"] == "2026-11-11T15:30:00+08:00"
+
+    store.delete_event(cal, uid)
 
 
 def test_delete_is_idempotent(temp_calendar):

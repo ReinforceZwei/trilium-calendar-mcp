@@ -162,6 +162,14 @@ creating a duplicate, which makes unattended re-runs idempotent.
 * **Identity** — every event carries a stable `#caldavUID`. New events get a UUID; pass `event_uid`
   (or use `calendar_upsert_events`) to update in place.
 * **Descriptions** — plain text, line breaks preserved. Markdown syntax is not interpreted.
+* **Response fields** — every response reflects what is actually stored. An update that does not
+  include `description` returns the *stored* body (never an empty string), so it is safe to trust the
+  response instead of re-fetching.
+* **End fields** — `end` is the ISO end (or `null` when a timed event has no end time), and
+  `end_date` is the event's last day whenever it has an end. For a same-day timed event (`15:00`–`15:30`)
+  `end_date` is therefore that same day, not `null`. Note that the `#endDate` **label** is only
+  written when an event spans days (Trilium's convention, which the CalDAV facade understands), so if
+  you inspect the notes directly, expect fewer labels than response fields.
 * **Not stored** — `status`, `priority`, `privacy`, `attendees`, `url`, reminders/alarms. These
   arguments are *accepted* so an existing prompt does not break, and echoed back in `ignored_fields`
   so the agent can see they had no effect.

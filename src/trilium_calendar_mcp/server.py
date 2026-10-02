@@ -391,6 +391,10 @@ def build_server(settings: Settings, store: CalendarStore | None = None) -> MCPS
     ) -> dict:
         """Update an existing event. Only the arguments you pass are changed.
 
+        The returned `event` reflects what is now stored: if you do not pass
+        `description`, the response carries the existing body (not an empty
+        string), so you do not need to re-fetch to confirm it survived.
+
         Args:
             event_uid: Uid of the event to update.
             calendar_name: Calendar holding the event; omit to search all calendars.

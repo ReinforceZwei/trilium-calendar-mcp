@@ -197,6 +197,52 @@ def test_bulk_upsert_and_delete(temp_calendar):
     assert [r["deleted"] for r in deleted["results"]] == [True, True, False]
 
 
+def test_update_response_reports_the_preserved_description(temp_calendar):
+    """Regression (reported from a live integration): updating a title only used
+    to return description: "" while the note kept its body, which misleads any
+    automation that trusts the response."""
+    _, results = _run(temp_calendar.env(), [
+        ("calendar_create_event", {"calendar_name": "TestCal", "title": "keep body",
+                                   "start_datetime": "2027-03-01T15:00:00",
+                                   "end_datetime": "2027-03-01T15:30:00",
+                                   "description": "body line one\nbody line two"}),
+    ])
+    created = _payload(results[0])
+    uid = created["event"]["uid"]
+
+    # the short same-day event must still report an end date
+    assert created["event"]["end_date"] == "2027-03-01"
+    assert created["event"]["end_time"] == "15:30"
+    assert created["event"]["end"] == "2027-03-01T15:30:00+08:00"
+
+    _, results = _run(temp_calendar.env(), [
+        ("calendar_update_event", {"calendar_name": "TestCal", "event_uid": uid,
+                                   "title": "renamed only"}),
+        ("calendar_get_event", {"calendar_name": "TestCal", "event_uid": uid}),
+        ("calendar_delete_event", {"calendar_name": "TestCal", "event_uid": uid}),
+    ])
+    updated = _payload(results[0])["event"]
+    assert updated["title"] == "renamed only"
+    assert updated["description"] == "body line one\nbody line two"  # not ""
+    assert _payload(results[1])["event"]["description"] == "body line one\nbody line two"
+
+
+def test_cross_day_event_over_mcp(temp_calendar):
+    calls = [
+        ("calendar_create_event", {"calendar_name": "TestCal", "title": "overnight",
+                                   "start_datetime": "2027-04-12T23:00:00",
+                                   "end_datetime": "2027-04-13T01:00:00"}),
+    ]
+    _, results = _run(temp_calendar.env(), calls)
+    event = _payload(results[0])["event"]
+    assert event["end"] == "2027-04-13T01:00:00+08:00"
+    assert event["end_date"] == "2027-04-13"
+    assert event["start_date"] == "2027-04-12" and event["start_time"] == "23:00"
+
+    _run(temp_calendar.env(), [("calendar_delete_event",
+                                {"calendar_name": "TestCal", "event_uid": event["uid"]})])
+
+
 def test_missing_start_datetime_is_rejected(temp_calendar):
     _, results = _run(temp_calendar.env(), [("calendar_create_event", {"title": "no start"})])
     assert _is_error(results[0])
