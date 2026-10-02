@@ -62,6 +62,7 @@ class Settings:
     search_limit: int = 5000
     log_level: str = "INFO"
     allowed_hosts: list[str] = field(default_factory=list)
+    allowed_origins: list[str] = field(default_factory=list)
 
     @property
     def tz(self) -> ZoneInfo:
@@ -168,5 +169,10 @@ def load_settings(require_calendars: bool = True) -> Settings:
             h.strip()
             for h in _env("MCP_ALLOWED_HOSTS").replace(";", ",").split(",")
             if h.strip()
+        ],
+        allowed_origins=[
+            o.strip()
+            for o in _env("MCP_ALLOWED_ORIGINS").replace(";", ",").split(",")
+            if o.strip()
         ],
     )

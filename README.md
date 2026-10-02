@@ -49,16 +49,21 @@ docker run --rm -p 127.0.0.1:8102:8102 \
 
 `docker-compose.yml` wires the same thing up with an `.env` file.
 
-> **HTTP endpoints and `Host` headers.** The MCP SDK rejects requests whose `Host` header it does
-> not recognise (DNS-rebinding protection) with `421 Invalid Host header` — which is what happens
-> when the container is reached under a service name (`http://trilium-calendar-mcp:8102`) or through
-> a proxy. List those names in `MCP_ALLOWED_HOSTS` (`host:port`, comma-separated):
+> **HTTP and `Host` headers.** The MCP SDK rejects requests whose `Host` header is not allow-listed
+> (DNS-rebinding protection, `421 Invalid Host header`) — a check whose SDK default depends on the
+> bind address and has historically rejected *every* hostname in containers
+> ([python-sdk#1798](https://github.com/modelcontextprotocol/python-sdk/issues/1798)). This server
+> decides it explicitly instead, so **no configuration is needed**:
 >
-> ```bash
-> -e MCP_ALLOWED_HOSTS=trilium-calendar-mcp:8102,cal-mcp.internal:443
-> ```
+> | `MCP_HOST` | protection | behaviour |
+> | --- | --- | --- |
+> | `0.0.0.0` (container/VM default) | off | any `Host` is accepted; the network/proxy is the boundary |
+> | `127.0.0.1` / `localhost` | on | `localhost` and `127.0.0.1` names accepted — protects a loopback-only server from a browser on the same machine |
+> | any bind + `MCP_ALLOWED_HOSTS` | on | only the listed `host:port` values are accepted |
 >
-> Not needed for `stdio`, and not needed when the client connects to `127.0.0.1:<port>` directly.
+> The startup log states which mode is active. Set `MCP_ALLOWED_HOSTS` (and optionally
+> `MCP_ALLOWED_ORIGINS`) only when a loopback-bound server is reached under another name — e.g. a
+> reverse proxy on the same host forwarding to `127.0.0.1:8102`.
 
 ### Client configuration (stdio)
 
@@ -84,7 +89,8 @@ docker run --rm -p 127.0.0.1:8102:8102 \
 | `TRILIUM_TIMEZONE` | no | `Asia/Shanghai` | Timezone used to interpret naive datetimes |
 | `MCP_TRANSPORT` | no | `stdio` | `stdio`, `streamable-http` (alias `http`) or `sse` |
 | `MCP_HOST` / `MCP_PORT` / `MCP_PATH` | no | `0.0.0.0` / `8102` / `/mcp` | HTTP binding |
-| `MCP_ALLOWED_HOSTS` | no | — | `host:port` names the HTTP endpoint accepts (see the note above) |
+| `MCP_ALLOWED_HOSTS` | no | — | Optional `host:port` allowlist; enables the DNS-rebinding check for binds where it is otherwise off (see the note above) |
+| `MCP_ALLOWED_ORIGINS` | no | derived | Optional `Origin` allowlist to accompany `MCP_ALLOWED_HOSTS` |
 | `TRILIUM_VERIFY_SSL` | no | `true` | Set `false` for a self-signed instance |
 | `TRILIUM_CA_BUNDLE` | no | — | Custom CA bundle path |
 | `TRILIUM_TIMEOUT` | no | `30` | Per-request timeout (seconds) |

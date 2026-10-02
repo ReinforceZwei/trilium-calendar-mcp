@@ -620,22 +620,36 @@ def main(argv: list[str] | None = None) -> int:
     if settings.transport == "stdio":
         server.run(transport="stdio")
     else:
-        log.info("listening on http://%s:%s%s", settings.host, settings.port, settings.path)
-        run_kwargs = {
-            "transport": "streamable-http",
-            "host": settings.host,
-            "port": settings.port,
-            "streamable_http_path": settings.path,
-        }
-        if settings.allowed_hosts:
-            from mcp.server.transport_security import TransportSecuritySettings
+        from mcp.server.transport_security import TransportSecuritySettings
 
-            run_kwargs["transport_security"] = TransportSecuritySettings(
-                enable_dns_rebinding_protection=True,
-                allowed_hosts=settings.allowed_hosts,
-                allowed_origins=settings.allowed_hosts,
+        from .transport import resolve_transport_security
+
+        policy = resolve_transport_security(
+            settings.host, settings.allowed_hosts, settings.allowed_origins
+        )
+        if policy.enable_dns_rebinding_protection:
+            log.info(
+                "DNS-rebinding protection: on (%s) - allowed hosts: %s",
+                policy.reason,
+                ", ".join(policy.allowed_hosts),
             )
-        server.run(**run_kwargs)
+        else:
+            log.info("DNS-rebinding protection: off (%s)", policy.reason)
+
+        log.info("listening on http://%s:%s%s", settings.host, settings.port, settings.path)
+        server.run(
+            transport="streamable-http",
+            host=settings.host,
+            port=settings.port,
+            streamable_http_path=settings.path,
+            # Always explicit: the SDK's own default depends on the bind address
+            # and has changed between versions.
+            transport_security=TransportSecuritySettings(
+                enable_dns_rebinding_protection=policy.enable_dns_rebinding_protection,
+                allowed_hosts=policy.allowed_hosts,
+                allowed_origins=policy.allowed_origins,
+            ),
+        )
     return 0
 
 

@@ -8,9 +8,9 @@ services:
       MCP_TRANSPORT: streamable-http
       MCP_HOST: 0.0.0.0
       MCP_PORT: "8102"
-      # Add every host:port the agent reaches this container by (service name,
-      # DNS name, proxy host), or the SDK answers 421 Invalid Host header.
-      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-trilium-calendar-mcp:8102,localhost:8102,127.0.0.1:8102}
+      # No host allowlist needed: binding all interfaces disables the
+      # DNS-rebinding check (MCP_ALLOWED_HOSTS is only for exposing a
+      # loopback-bound server under another name, e.g. through a proxy).
     ports:
       # 127.0.0.1 keeps the endpoint private to this host; expose on another
       # interface (or front it with your own proxy/auth) if the agent MCP
