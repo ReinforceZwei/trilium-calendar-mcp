@@ -114,6 +114,18 @@ TRILIUM_CALENDARS=0hq1wCTuDBjA,kf8Xq2vLpZ1a
   `color` and `event_count` — that is how the agent resolves "put it in Gaming".
 * All tools accept `calendar_name`; it matches the name/alias, the note title, or the note id,
   case-insensitively. The first configured calendar is the default when `calendar_name` is omitted.
+* **Timezone is per calendar, not global.** The server reads `#calendar:timezone` (or
+  `#caldavTimezone`) from the calendar note and only falls back to `TRILIUM_TIMEZONE` when that label
+  is absent — so a Japanese stream calendar can live on `Asia/Tokyo` next to a `Asia/Shanghai`
+  default:
+
+  ```bash
+  TRILIUM_CALENDARS=0hq1wCTuDBjA:Gaming,RK8TylXULHT3:Streams
+  # note RK8TylXULHT3 carries  #calendar:timezone = Asia/Tokyo
+  ```
+
+  Naive datetimes are interpreted in that calendar's zone and results come back with its offset
+  (`09:00` → `2026-11-21T09:00:00+09:00`), while Trilium itself keeps storing the naive wall clock.
 * An unknown name is an error that lists the valid ones, so the agent can self-correct.
 
 ## Tools
@@ -201,8 +213,9 @@ facade. Nothing here requires the facade, and the facade does not require this s
 
 * **No reminders/alarms, attendees, or event status** — Trilium notes have no equivalent.
 * **No todos/VTODO** — event notes only (Trilium's `#todoDate` task notes are a follow-up).
-* **Timezones are per calendar, not per event** — a single calendar has one timezone; events from
-  several zones are normalised into it.
+* **Timezones are per calendar, not per event** — a single calendar has one timezone
+  (`#calendar:timezone` on the note, else `TRILIUM_TIMEZONE`); events from several zones are
+  normalised into it.
 * **Listing scans the calendar's children** (one ETAPI search) and filters locally; fine for the
   thousands-of-events scale, not for millions.
 * **No ETags/conflict detection** — last write wins, which is fine for an agent-owned calendar.
